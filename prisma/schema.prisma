@@ -1,0 +1,153 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("user") // admin, editor, viewer
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  providers Provider[]
+  channels  Channel[]
+  flows     Flow[]
+  bots      Bot[]
+  messages  Message[]
+
+  @@map("users")
+}
+
+model Provider {
+  id        String   @id @default(cuid())
+  type      String   // openai, gemini, anthropic
+  encKey    String   // API key encriptada
+  baseUrl   String?  // URL base opcional
+  model     String   // modelo por defecto
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bots Bot[]
+
+  @@map("providers")
+}
+
+model Channel {
+  id            String   @id @default(cuid()) // usar como :channelId en URLs
+  type          String   // whatsapp_cloud | telegram | webchat
+  phoneNumberId String?  // WhatsApp Phone Number ID
+  verifyToken   String?  // WhatsApp Verify Token
+  appSecret     String?  // WhatsApp App Secret
+  accessToken   String?  // WhatsApp Access Token (encriptado)
+  botToken      String?  // Telegram Bot Token (encriptado)
+  publicSlug    String?  // Webchat public slug
+  isActive      Boolean  @default(false)
+  botId         String?
+  webhookUrl    String   // URL del webhook
+  userId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot  Bot? @relation(fields: [botId], references: [id])
+  messages Message[]
+
+  @@map("channels")
+}
+
+model Flow {
+  id             String  @id @default(cuid())
+  name           String
+  jsonDefinition Json    // Definición del flujo en JSON
+  entryNodeId    String  // ID del nodo de entrada
+  status         String  // draft | live
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bots Bot[]
+
+  @@map("flows")
+}
+
+model Bot {
+  id                String   @id @default(cuid())
+  name              String
+  defaultFlowId     String
+  defaultProviderId String?
+  status            String   // draft | live
+  userId            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relaciones
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultFlow     Flow      @relation(fields: [defaultFlowId], references: [id])
+  defaultProvider Provider? @relation(fields: [defaultProviderId], references: [id])
+  channels        Channel[]
+  messages        Message[]
+
+  @@map("bots")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  botId          String
+  channelId      String
+  externalUserId String   // ID del usuario en el canal externo
+  role           String   // user | assistant | system
+  content        String
+  meta           Json?    // Metadatos adicionales
+  createdAt      DateTime @default(now())
+
+  // Relaciones
+  bot     Bot     @relation(fields: [botId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// Índices para optimizar consultas
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // create, update, delete
+  resource  String   // bot, channel, flow, etc.
+  resourceId String?
+  changes   Json?    // Cambios realizados
+  timestamp DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Índices para optimizar consultas
+model ErrorEvent {
+  id        String   @id @default(cuid())
+  component String   // api, worker, webhook, etc.
+  code      String?  // Código de error
+  message   String
+  reqId     String?  // Request ID para correlación
+  timestamp DateTime @default(now())
+
+  @@map("error_events")
+}
+
+
+
+

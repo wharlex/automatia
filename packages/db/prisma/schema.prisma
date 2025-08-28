@@ -1,0 +1,247 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  memberships   Membership[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  billingStatus BillingStatus @default(INACTIVE)
+  members       Membership[]
+  bots          Bot[]
+  apiKeys       ApiKey[]
+  datasources   Datasource[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("workspaces")
+}
+
+enum BillingStatus { 
+  ACTIVE 
+  INACTIVE 
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role     @default(MEMBER)
+  // Gate de uso: hasta que el admin no apruebe, el miembro no puede usar bots.
+  isApproved  Boolean  @default(false)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([userId, workspaceId])
+  @@map("memberships")
+}
+
+enum Role { 
+  OWNER 
+  ADMIN 
+  MEMBER 
+}
+
+model Bot {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  name           String
+  channel        Channel   // WHATSAPP, WEBCHAT, TELEGRAM
+  provider       AIProvider // GPT | GEMINI
+  providerModel  String
+  vertical       Vertical   // RESTAURANT | GYM | SALON | OTHER
+  verticalOther  String?
+  systemPrompt   String
+  userTpl        String
+  flowConfig     Json      // JSON del flow (ver esquema más abajo)
+  // Gate de uso del bot: para evitar uso no autorizado aunque el usuario exista.
+  isBotActivated Boolean   @default(false)
+  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  allowedUsers   AllowedUser[]
+  messageLogs    MessageLog[]
+  webhookEvents  WebhookEvent[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("bots")
+}
+
+enum Channel { 
+  WHATSAPP 
+  TELEGRAM 
+  WEBCHAT 
+}
+
+enum AIProvider { 
+  GPT 
+  GEMINI 
+}
+
+enum Vertical { 
+  RESTAURANT 
+  GYM 
+  SALON 
+  OTHER 
+}
+
+model ApiKey {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  kind         ApiKeyKind // OPENAI | GOOGLE_GEMINI | META_WHATSAPP
+  keyEncrypted String
+  meta         Json?
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+
+  @@map("api_keys")
+}
+
+enum ApiKeyKind { 
+  OPENAI 
+  GOOGLE_GEMINI 
+  META_WHATSAPP 
+}
+
+model Datasource {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  type         DatasourceType // FILE | URL | DOCS
+  // Para archivos locales: guardamos referencia S3/Minio
+  uri          String
+  mime         String?
+  status       DatasourceStatus @default(PENDING)
+  parsedSchema Json?     // columnas detectadas/campos (para CSV/XLS/JSON)
+  rowsCount    Int?
+  vectorized   Boolean   @default(false) // si se indexó a vector store
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("datasources")
+}
+
+enum DatasourceType { 
+  FILE 
+  URL 
+  DOCS 
+}
+
+enum DatasourceStatus { 
+  PENDING 
+  READY 
+  ERROR 
+}
+
+model AllowedUser { // Lista blanca por bot (aprobación granular extra)
+  id        String @id @default(cuid())
+  botId     String
+  email     String // correo del que puede usar el bot
+  bot       Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([botId, email])
+  @@map("allowed_users")
+}
+
+model MessageLog {
+  id         String   @id @default(cuid())
+  botId      String
+  userKey    String? // ej: wa_id
+  direction  MsgDir
+  channel    Channel
+  payload    Json
+  status     String
+  error      String?
+  bot        Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@map("message_logs")
+}
+
+enum MsgDir { 
+  IN 
+  OUT 
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  botId       String?
+  source      String
+  eventType   String
+  raw         Json
+  processedAt DateTime?
+  bot         Bot?     @relation(fields: [botId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@map("webhook_events")
+}
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  actorId    String?
+  workspaceId String?
+  entity     String // 'BOT' | 'WORKSPACE' | 'MEMBERSHIP' | 'DATASOURCE'...
+  entityId   String?
+  action     String // 'CREATE' | 'UPDATE' | 'APPROVE' | 'ACTIVATE'...
+  diff       Json?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Tabla para datos tabulares normalizados (CSV/XLS/JSON)
+model DatasourceRow {
+  id           String   @id @default(cuid())
+  datasourceId String
+  rowNumber    Int
+  data         Json     // Datos de la fila en formato JSON
+  datasource   Datasource @relation(fields: [datasourceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([datasourceId, rowNumber])
+  @@map("datasource_rows")
+}
+
+// Relación entre Datasource y DatasourceRow
+model Datasource {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  name         String
+  type         DatasourceType
+  uri          String
+  mime         String?
+  status       DatasourceStatus @default(PENDING)
+  parsedSchema Json?
+  rowsCount    Int?
+  vectorized   Boolean   @default(false)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  rows         DatasourceRow[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("datasources")
+}

@@ -1,0 +1,39 @@
+name: deploy
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Build app & worker images
+        run: |
+          docker build -f ops/Dockerfile -t automatia-app:latest .
+          docker build -f ops/Dockerfile.worker -t automatia-worker:latest .
+      - name: Copy ops to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          source: "ops/*"
+          target: "~/automatia/ops"
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_KEY }}
+          script: |
+            cd ~/automatia/ops
+            echo "${{ secrets.ENV_PROD }}" > .env.production
+            docker compose build app worker
+            bash deploy.sh
+
+
+
+
+

@@ -1,0 +1,16 @@
+{
+  "chatbot_premium": {
+    "name": "Chatbot Premium",
+    "price_usd": 497,
+    "description": "Chatbot entrenado en tu negocio con flujos avanzados, integración WhatsApp y soporte 24/7",
+    "active": true,
+    "features": ["Entrenamiento personalizado", "Integración WhatsApp", "Soporte 24/7", "Análisis de conversaciones"]
+  },
+  "chatbot_starter": {
+    "name": "Chatbot Starter",
+    "price_usd": 297,
+    "description": "Chatbot básico para automatizar respuestas frecuentes y captar leads",
+    "active": true,
+    "features": ["Respuestas automáticas", "Captura de leads", "Configuración básica", "Soporte por email"]
+  }
+}

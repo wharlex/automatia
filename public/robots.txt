@@ -1,0 +1,34 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://automatia.store/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1
+
+# Disallow admin and private areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/
+
+# Allow important pages
+Allow: /sobre-nosotros
+Allow: /precios
+Allow: /contacto
+Allow: /como-funciona
+Allow: /productos
+Allow: /marketplace
+Allow: /modules
+
+# Host
+Host: https://automatia.store
+
+
+
+
+
+
+
